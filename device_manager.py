@@ -25,14 +25,24 @@ class DeviceManager:
             json.dump(self.devices, file, indent=4)
 
     def add_device(self, hostname, ip_address, device_type, location):
-        next_id = max((device["id"] for device in self.devices), default=0) + 1
+        # Prevent duplicate IP addresses
+        for device in self.devices:
+            if device["ip_address"] == ip_address:
+                raise ValueError(
+                    f"IP address {ip_address} is already registered."
+                )
+
+        next_id = max(
+            (device["id"] for device in self.devices),
+            default=0
+        ) + 1
 
         device = {
             "id": next_id,
             "hostname": hostname,
             "ip_address": ip_address,
             "device_type": device_type,
-            "location": location,
+            "location": location
         }
 
         self.devices.append(device)
@@ -40,22 +50,24 @@ class DeviceManager:
         return device
 
     def get_all_devices(self):
-        return list(self.devices)
+        return self.devices
 
     def get_device(self, device_id):
-        return next(
-            (device for device in self.devices if device["id"] == device_id),
-            None,
-        )
+        for device in self.devices:
+            if device["id"] == device_id:
+                return device
+        return None
 
-    def search_devices(self, search_term):
-        term = search_term.lower()
+    def search_devices(self, term):
+        term = term.lower()
 
         return [
             device
             for device in self.devices
-            if term in device["hostname"].lower()
-            or term in device["ip_address"].lower()
-            or term in device["device_type"].lower()
-            or term in device["location"].lower()
+            if (
+                term in device["hostname"].lower()
+                or term in device["ip_address"].lower()
+                or term in device["device_type"].lower()
+                or term in device["location"].lower()
+            )
         ]
