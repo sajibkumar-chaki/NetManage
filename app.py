@@ -1,7 +1,13 @@
-from device_manager import DeviceManager
-from validation import validate_ip
+try:
+    from NetManage.device_manager import DeviceManager
+    from NetManage.validation import validate_ip
+    from NetManage.report import generate_report, export_csv
+except ModuleNotFoundError:
+    from device_manager import DeviceManager
+    from validation import validate_ip
+    from report import generate_report, export_csv
+
 from network_tools import check_connectivity, get_diagnostics
-from report import generate_report, export_csv
 
 
 def display_menu():

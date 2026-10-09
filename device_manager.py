@@ -94,3 +94,4 @@ class DeviceManager:
                 results.append(device)
 
         return results
+    
