@@ -22,12 +22,9 @@ def display_menu():
 
 def add_device(manager):
     print("\n--- Add Network Device ---")
-
     hostname = input("Hostname: ").strip()
     ip_address = input("IP address: ").strip()
-    device_type = input(
-        "Device type (Router/Switch/Server/Other): "
-    ).strip()
+    device_type = input("Device type (Router/Switch/Server/Other): ").strip()
     location = input("Location: ").strip()
 
     if not hostname or not ip_address or not device_type or not location:
@@ -38,38 +35,20 @@ def add_device(manager):
         print("Error: invalid IP address.")
         return
 
-    try:
-        device = manager.add_device(
-            hostname,
-            ip_address,
-            device_type,
-            location
-        )
-        print(f"Device added successfully with ID {device['id']}.")
-
-    except ValueError as error:
-        print(f"Error: {error}")
+    device = manager.add_device(hostname, ip_address, device_type, location)
+    print(f"Device added successfully with ID {device['id']}.")
 
 
 def view_devices(manager):
     print("\n--- All Devices ---")
-
     devices = manager.get_all_devices()
 
     if not devices:
         print("No devices found.")
         return
 
-    print(
-        f"{'ID':<5}"
-        f"{'Hostname':<18}"
-        f"{'IP Address':<18}"
-        f"{'Type':<12}"
-        f"{'Location':<15}"
-    )
-
+    print(f"{'ID':<5}{'Hostname':<18}{'IP Address':<18}{'Type':<12}{'Location':<15}")
     print("-" * 68)
-
     for device in devices:
         print(
             f"{device['id']:<5}"
@@ -81,10 +60,7 @@ def view_devices(manager):
 
 
 def search_device(manager):
-    term = input(
-        "\nEnter hostname, IP address, or device type: "
-    ).strip()
-
+    term = input("\nEnter hostname, IP address, or device type: ").strip()
     results = manager.search_devices(term)
 
     if not results:
@@ -92,7 +68,6 @@ def search_device(manager):
         return
 
     print(f"\nFound {len(results)} device(s):")
-
     for device in results:
         print(
             f"ID: {device['id']} | "
@@ -105,7 +80,6 @@ def search_device(manager):
 
 def validate_ip_menu():
     ip_address = input("\nEnter IP address: ").strip()
-
     if validate_ip(ip_address):
         print("Valid IP address.")
     else:
@@ -114,13 +88,11 @@ def validate_ip_menu():
 
 def connectivity_menu(manager):
     devices = manager.get_all_devices()
-
     if not devices:
         print("No devices available.")
         return
 
     view_devices(manager)
-
     try:
         device_id = int(input("\nEnter device ID: "))
     except ValueError:
@@ -128,15 +100,12 @@ def connectivity_menu(manager):
         return
 
     device = manager.get_device(device_id)
-
     if not device:
         print("Device not found.")
         return
 
     print(f"Checking connectivity to {device['ip_address']}...")
-
     result = check_connectivity(device["ip_address"])
-
     print(f"Status: {result}")
 
 
@@ -148,15 +117,12 @@ def diagnostics_menu(manager):
         return
 
     device = manager.get_device(device_id)
-
     if not device:
         print("Device not found.")
         return
 
     diagnostics = get_diagnostics(device)
-
     print("\n--- Network Diagnostics ---")
-
     for key, value in diagnostics.items():
         print(f"{key}: {value}")
 
@@ -166,39 +132,29 @@ def main():
 
     while True:
         display_menu()
-
         choice = input("\nEnter your choice: ").strip()
 
         if choice == "1":
             add_device(manager)
-
         elif choice == "2":
             view_devices(manager)
-
         elif choice == "3":
             search_device(manager)
-
         elif choice == "4":
             validate_ip_menu()
-
         elif choice == "5":
             connectivity_menu(manager)
-
         elif choice == "6":
             diagnostics_menu(manager)
-
         elif choice == "7":
             report = generate_report(manager.get_all_devices())
             print("\n" + report)
-
         elif choice == "8":
             filename = export_csv(manager.get_all_devices())
             print(f"Device data exported to {filename}")
-
         elif choice == "9":
             print("Thank you for using NetManage.")
             break
-
         else:
             print("Invalid choice. Please select 1-9.")
 
