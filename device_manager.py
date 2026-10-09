@@ -71,3 +71,26 @@ class DeviceManager:
                 or term in device["location"].lower()
             )
         ]
+    
+    @staticmethod
+    def search_device(devices, search_term):
+        """Search devices by hostname, IP address, device type, or location."""
+        search_term = search_term.strip().casefold()
+
+        if not search_term:
+            return []
+
+        results = []
+
+        for device in devices:
+            searchable_fields = [
+                str(device.get("hostname", "")),
+                str(device.get("ip_address", "")),
+                str(device.get("device_type", "")),
+                str(device.get("location", "")),
+            ]
+
+            if any(search_term in field.casefold() for field in searchable_fields):
+                results.append(device)
+
+        return results
