@@ -1,7 +1,4 @@
-try:
-    from NetManage.device_manager import DeviceManager
-except ModuleNotFoundError:
-    from device_manager import DeviceManager
+from device_manager import DeviceManager
 
 
 DEVICES = [

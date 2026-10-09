@@ -1,7 +1,4 @@
-try:
-    from NetManage.report import generate_report
-except ModuleNotFoundError:
-    from report import generate_report
+from report import generate_report
 
 
 def test_generate_report():

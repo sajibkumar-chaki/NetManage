@@ -1,8 +1,5 @@
 
-try:
-    from NetManage.validation import validate_ip, get_ip_version
-except ModuleNotFoundError:
-    from validation import validate_ip, get_ip_version
+from validation import validate_ip, get_ip_version
 
 
 def test_valid_ipv4():
