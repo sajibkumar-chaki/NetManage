@@ -1,19 +1,41 @@
+
+import ipaddress
 import platform
 import subprocess
 
 
 def check_connectivity(ip_address, timeout=2):
-    """Return Reachable or Unreachable using the operating system ping command."""
+    """Check IPv4/IPv6 connectivity using the system ping command."""
+
+    try:
+        ip = ipaddress.ip_address(ip_address)
+    except ValueError:
+        return "Invalid IP Address"
+
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not 0 < timeout < float("inf")
+    ):
+        return "Invalid Timeout"
+
     system = platform.system().lower()
-    command = ["ping", "-n" if system == "windows" else "-c", "1"]
 
     if system == "windows":
-        command.append("-w")
-        command.append(str(timeout * 1000))
+        command = [
+            "ping",
+            "-6" if ip.version == 6 else "-4",
+            "-n", "1",
+            "-w", str(max(1, int(timeout * 1000))),
+            str(ip),
+        ]
     else:
-        command.extend(["-W", str(timeout)])
-
-    command.append(ip_address)
+        command = [
+            "ping",
+            "-6" if ip.version == 6 else "-4",
+            "-c", "1",
+            str(ip),
+        ]
 
     try:
         result = subprocess.run(
@@ -23,13 +45,22 @@ def check_connectivity(ip_address, timeout=2):
             timeout=timeout + 2,
             check=False,
         )
-        return "Reachable" if result.returncode == 0 else "Unreachable"
+
+        if result.returncode == 0:
+            return "Reachable"
+
+        return "No Ping Response"
+
+    except subprocess.TimeoutExpired:
+        return "Timeout"
+
     except (subprocess.SubprocessError, OSError):
-        return "Unreachable"
+        return "Ping Error"
 
 
 def get_diagnostics(device):
-    """Return basic diagnostic information for a device."""
+    """Return basic device information and ping connectivity."""
+
     status = check_connectivity(device["ip_address"])
 
     return {
