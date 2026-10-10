@@ -1,4 +1,6 @@
+
 from device_manager import DeviceManager
+
 
 devices = [
     {
