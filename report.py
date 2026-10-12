@@ -30,6 +30,7 @@ def generate_report(devices):
 
 
 
+
 def export_csv(devices, filename="data/devices.csv"):
     path = Path(filename)
 
@@ -42,10 +43,12 @@ def export_csv(devices, filename="data/devices.csv"):
     ]
 
     valid_devices = []
+    skipped_count = 0
 
     for device in devices:
         # Skip records that are not dictionaries
         if not isinstance(device, dict):
+            skipped_count += 1
             continue
 
         # Skip records with missing or None fields
@@ -53,6 +56,7 @@ def export_csv(devices, filename="data/devices.csv"):
             field not in device or device[field] is None
             for field in fields
         ):
+            skipped_count += 1
             continue
 
         # Keep only the expected CSV fields
@@ -72,5 +76,10 @@ def export_csv(devices, filename="data/devices.csv"):
         writer.writeheader()
         writer.writerows(valid_devices)
 
-    return str(path)
+    if skipped_count > 0:
+        print(
+            f"Warning: {skipped_count} invalid device "
+            "record(s) skipped during CSV export."
+        )
 
+    return str(path)

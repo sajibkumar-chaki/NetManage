@@ -184,3 +184,36 @@ def test_export_csv_data_integrity(tmp_path):
             "device_type", "location"
         ]:
             assert exported[field] == str(original[field])
+
+def test_export_csv_warns_when_invalid_records_skipped(tmp_path, capsys):
+    from report import export_csv
+    import csv
+
+    devices = [
+        {
+            "id": 1,
+            "hostname": "Router1",
+            "ip_address": "192.168.1.1",
+            "device_type": "Router",
+            "location": "Sydney",
+        },
+        {
+            "id": 2,
+            "hostname": None,
+            "ip_address": "192.168.1.2",
+            "device_type": "Switch",
+            "location": "Sydney",
+        },
+    ]
+
+    output_file = tmp_path / "devices.csv"
+    export_csv(devices, output_file)
+
+    captured = capsys.readouterr()
+    assert "Warning: 1 invalid device record(s) skipped" in captured.out
+
+    with output_file.open(newline="", encoding="utf-8") as file:
+        rows = list(csv.DictReader(file))
+
+    assert len(rows) == 1
+    assert rows[0]["hostname"] == "Router1"

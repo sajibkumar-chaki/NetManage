@@ -130,7 +130,7 @@ The results were verified using the GitHub Actions workflow logs.
 
 These results apply to commit `4f4ffaf`. Any subsequent commits require a new CI verification.
 
-Pull request creation, code review, approval, and merge remain pending.
+Pull Request #5 has been created, and the Scrum Leader has requested changes. Final approval and merging remain pending.
 
 
 ## 9. Development and Review Workflow
@@ -166,7 +166,7 @@ Screenshots and Git history must represent actual development activities. Existi
 
 ## 11. Conclusion
 
-The NETMANAGE reporting and CSV export functions have been successfully improved, and seven new automated tests have been added.
+Pull Request #5 is under review. The latest corrections passed 38 local automated tests and are awaiting updated GitHub Actions verification.
 
 ### Development Results
 
@@ -187,3 +187,36 @@ These CI results apply to commit `4f4ffaf`. Any subsequent documentation or code
 The project improvements have been implemented and successfully tested locally and through GitHub Actions.
 
 Pull request submission, code review by the Scrum Leader, approval, and merging into the main branch remain pending.
+
+
+## 12. Pull Request #5 – Review and Improvements
+
+**Developer:** Shadid (Member 4 – QA/DevOps)
+**Reviewer:** Sajib Kumar Chaki (Scrum Leader)
+**Branch:** `feature/reporting-csv-ci`
+**Status:** Changes requested; awaiting re-review
+
+### Review Feedback and Improvements
+
+The Scrum Leader requested two minor improvements:
+
+1. **CSV Export:** Added a warning to inform users when invalid device records are skipped.
+2. **Documentation:** Updated the pull request status and testing information.
+
+An additional automated test was added to verify the CSV warning and ensure valid records are still exported correctly.
+
+### Testing Results
+
+| Test Information | Result |
+|---|---|
+| Previous automated tests | 37 passed |
+| New warning test | 1 passed |
+| **Updated local tests** | **38 passed, 0 failed** |
+| Previous verified GitHub Actions | 37 passed |
+| Updated GitHub Actions | Pending verification |
+
+### Current Status
+
+All 38 automated tests passed locally. The corrections are ready for GitHub submission.
+
+After pushing the changes, GitHub Actions will run again. The Scrum Leader will then review the updated pull request before approval and merging.
