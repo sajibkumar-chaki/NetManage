@@ -134,3 +134,30 @@ def test_cli_cancel_preserves_inventory(manager,monkeypatch,capsys):
     delete_device_menu(manager)
     assert manager.data_file.read_bytes() == before
     assert "cancelled" in capsys.readouterr().out
+
+
+def test_operational_ping_failure_distinct():
+    with patch("network_tools.subprocess.run") as run:
+        run.return_value.returncode=1
+        run.return_value.stdout="Unable to contact IP driver. General failure."
+        assert check_connectivity("127.0.0.1")=="Ping Error"
+
+
+def test_monitor_missing_device_and_pre_cancel(manager):
+    with pytest.raises(ValueError,match="not found"):
+        MonitorSession(manager,99,count=1,probe=lambda ip:"Reachable").run()
+    session=MonitorSession(manager,1,count=1,probe=lambda ip:pytest.fail("Cancelled probe ran"))
+    session.stop()
+    session.run()
+
+
+def test_import_backup_and_source_preserved(tmp_path):
+    source=DeviceManager(tmp_path/"source.json")
+    source.add_device("Demo","127.0.0.1","Server","Lab")
+    before=source.data_file.read_bytes()
+    dest=DeviceManager(tmp_path/"destination.json")
+    dest.data_file.write_text("[]")
+    assert dest.import_inventory(source.data_file)==1
+    assert source.data_file.read_bytes()==before
+    backups=list(tmp_path.glob("devices.backup-*.json"))
+    assert len(backups)==1 and backups[0].read_text()=="[]"

@@ -31,7 +31,7 @@ def generate_report(devices):
 
 
 
-def export_csv(devices, filename="data/devices.csv"):
+def export_csv(devices, filename="data/devices.csv", on_warning=None):
     path = Path(filename)
 
     fields = [
@@ -77,9 +77,7 @@ def export_csv(devices, filename="data/devices.csv"):
         writer.writerows(valid_devices)
 
     if skipped_count > 0:
-        print(
-            f"Warning: {skipped_count} invalid device "
-            "record(s) skipped during CSV export."
-        )
+        message = f"Warning: {skipped_count} invalid device record(s) skipped during CSV export."
+        (on_warning or print)(message)
 
     return str(path)

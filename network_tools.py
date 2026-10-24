@@ -58,6 +58,10 @@ def check_connectivity(ip_address, timeout=2):
                     return "No Ping Response"
             return "Reachable"
 
+        output = result.stdout
+        if isinstance(output, str) and any(message in output.casefold() for message in
+                ("general failure", "unable to contact ip driver", "permission denied", "operation not permitted")):
+            return "Ping Error"
         return "No Ping Response"
 
     except subprocess.TimeoutExpired:

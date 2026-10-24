@@ -147,6 +147,23 @@ class DeviceManager:
             self.devices = [d for d in self.devices if d["id"] != device_id]
         return True
 
+    def import_inventory(self, source_file):
+        source = DeviceManager(source_file)
+        records = source.get_all_devices()
+        addresses = [str(ipaddress.ip_address(d["ip_address"].strip())) for d in records]
+        if len(addresses) != len(set(addresses)):
+            raise ValueError("Import contains duplicate addresses. Resolve them first.")
+        with self._transaction():
+            if self.devices:
+                raise ValueError("Import requires an empty destination store. Existing inventory preserved.")
+            if self.data_file.exists():
+                import shutil
+                from datetime import datetime
+                backup = self.data_file.with_name("devices.backup-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ".json")
+                shutil.copy2(self.data_file, backup)
+            self.devices = records
+        return len(records)
+
     def get_all_devices(self):
         self.devices = self._load_devices()
         return copy.deepcopy(self.devices)

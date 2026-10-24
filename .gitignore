@@ -6,3 +6,9 @@ venv/
 .env
 .vscode/
 data/devices.csv
+
+build/
+dist/
+*.lock
+data/history/
+data/exports/
