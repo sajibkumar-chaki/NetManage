@@ -123,13 +123,19 @@ class DeviceManager:
             self.devices.append(device)
         return copy.deepcopy(device)
 
-    def edit_device(self, device_id, **changes):
+    @staticmethod
+    def _check_snapshot(device, expected_device):
+        if expected_device is not None and device != expected_device:
+            raise ValueError("Device changed since this form was opened. Refresh and reopen before saving or deleting.")
+
+    def edit_device(self, device_id, *, expected_device=None, **changes):
         if set(changes) - {"hostname", "ip_address", "device_type", "location"}:
             raise ValueError("Unknown device field.")
         with self._transaction():
             device = next((d for d in self.devices if d["id"] == device_id), None)
             if device is None or type(device_id) is not int:
                 raise ValueError("Device not found.")
+            self._check_snapshot(device, expected_device)
             fields = validate_fields(*(changes.get(k, device[k]) for k in ("hostname", "ip_address", "device_type", "location")))
             self._unique(fields["ip_address"], device_id)
             if fields["ip_address"] != str(ipaddress.ip_address(device["ip_address"])):
@@ -138,12 +144,14 @@ class DeviceManager:
             device.update(fields)
         return copy.deepcopy(device)
 
-    def delete_device(self, device_id, confirmed=False):
+    def delete_device(self, device_id, confirmed=False, *, expected_device=None):
         if confirmed is not True:
             return False
         with self._transaction():
             if type(device_id) is not int or not any(d["id"] == device_id for d in self.devices):
                 raise ValueError("Device not found.")
+            device = next(d for d in self.devices if d["id"] == device_id)
+            self._check_snapshot(device, expected_device)
             self.devices = [d for d in self.devices if d["id"] != device_id]
         return True
 

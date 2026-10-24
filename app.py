@@ -189,7 +189,7 @@ def edit_device_menu(manager):
         if value:
             changes[key] = value
     if input("Save changes? Type yes: ").strip().casefold() == "yes":
-        print("Saved:", manager.edit_device(device_id, **changes))
+        print("Saved:", manager.edit_device(device_id, expected_device=device, **changes))
     else:
         print("Edit cancelled.")
 
@@ -201,7 +201,7 @@ def delete_device_menu(manager):
         raise ValueError("Device not found.")
     print(device)
     confirmed = input("Delete this record? Type yes: ").strip().casefold() == "yes"
-    print("Device deleted." if manager.delete_device(device_id, confirmed) else "Delete cancelled.")
+    print("Device deleted." if manager.delete_device(device_id, confirmed, expected_device=device) else "Delete cancelled.")
 
 
 def monitoring_menu(manager):

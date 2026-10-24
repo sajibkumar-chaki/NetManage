@@ -126,3 +126,36 @@ def test_ip_change_does_not_reuse_history(window):
     window.manager.edit_device(1,ip_address="::1")
     window.refresh()
     assert window.dashboard_table.item(0,2).text()=="Unchecked"
+
+
+def test_stale_gui_edit_preserves_other_editors_change(window,monkeypatch):
+    other=DeviceManager(window.manager.data_file)
+    window.nav.setCurrentRow(1)
+    window.device_table.selectRow(0)
+    def edit_during_dialog(dialog):
+        other.edit_device(1, location="Other editor confirmed")
+        return QDialog.DialogCode.Accepted
+    monkeypatch.setattr(DeviceDialog,"exec",edit_during_dialog)
+    monkeypatch.setattr(DeviceDialog,"values",lambda self:dict(hostname="Stale rename",ip_address="127.0.0.1",device_type="Server",location="Lab"))
+    errors=[]
+    window.show_error=errors.append
+    window.edit_device()
+    assert len(errors)==1 and "Refresh and reopen" in errors[0]
+    current=other.get_device(1)
+    assert current["location"]=="Other editor confirmed"
+    assert current["hostname"]=="Demo"
+
+
+def test_stale_gui_delete_keeps_changed_record(window,monkeypatch):
+    other=DeviceManager(window.manager.data_file)
+    window.nav.setCurrentRow(1)
+    window.device_table.selectRow(0)
+    def change_during_confirmation(*args):
+        other.edit_device(1, location="Changed during confirmation")
+        return QMessageBox.StandardButton.Yes
+    monkeypatch.setattr(QMessageBox,"question",change_during_confirmation)
+    errors=[]
+    window.show_error=errors.append
+    window.delete_device()
+    assert len(errors)==1 and "Device changed" in errors[0]
+    assert other.get_device(1)["location"]=="Changed during confirmation"

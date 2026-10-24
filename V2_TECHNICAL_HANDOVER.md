@@ -50,3 +50,8 @@ Run-specific progress, complete test logs, actual capture files and evidence reg
 ## Remaining external gates
 
 No release publication or merge is authorized by this document. Feature push/one PR requires the scoped user authorization; Sajib's genuine review and a separate head-specific merge authorization follow. A clean machine without Python has not been tested.
+
+
+## Conflicting Edit and Delete dialogs
+
+CLI and desktop send the record snapshot displayed when an Edit form or Delete confirmation opens. Under the existing transaction lock, the backend compares that snapshot to the current record before mutation. If another writer changed the record, the operation rejects with a refresh/reopen message and preserves the confirmed update. Reloading and reopening permits a fresh confirmed action. Backend callers can opt into the same protection with keyword-only `expected_device`; existing partial-update callers remain compatible.

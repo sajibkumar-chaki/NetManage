@@ -392,7 +392,7 @@ class MainWindow(QMainWindow):
         device=self.selected_device()
         dialog=DeviceDialog(device,self)
         if dialog.exec()==QDialog.DialogCode.Accepted:
-            self.manager.edit_device(device["id"],**dialog.values())
+            self.manager.edit_device(device["id"],expected_device=device,**dialog.values())
             self.refresh()
             self.statusBar().showMessage("Device updated.")
 
@@ -402,7 +402,7 @@ class MainWindow(QMainWindow):
         answer=QMessageBox.question(self,"Confirm deletion",f"Delete #{device['id']} {device['hostname']} ({device['ip_address']})?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)
         if answer==QMessageBox.StandardButton.Yes:
-            self.manager.delete_device(device["id"],True)
+            self.manager.delete_device(device["id"],True,expected_device=device)
             self.refresh()
             self.statusBar().showMessage("Device deleted.")
 

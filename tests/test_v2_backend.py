@@ -161,3 +161,34 @@ def test_import_backup_and_source_preserved(tmp_path):
     assert source.data_file.read_bytes()==before
     backups=list(tmp_path.glob("devices.backup-*.json"))
     assert len(backups)==1 and backups[0].read_text()=="[]"
+
+
+def test_stale_edit_rejected_under_transaction_lock(manager):
+    other = DeviceManager(manager.data_file)
+    original = manager.get_device(1)
+    other.edit_device(1, location="New confirmed location")
+    stale_fields = {key: original[key] for key in ("hostname", "ip_address", "device_type", "location")}
+    stale_fields["hostname"] = "Stale editor rename"
+    before = manager.data_file.read_bytes()
+    with pytest.raises(ValueError, match="Refresh and reopen"):
+        manager.edit_device(1, expected_device=original, **stale_fields)
+    assert manager.data_file.read_bytes() == before
+    assert manager.get_device(1)["location"] == "New confirmed location"
+    assert manager.get_device(1)["hostname"] == original["hostname"]
+    fresh = manager.get_device(1)
+    manager.edit_device(1, expected_device=fresh, hostname="Fresh editor rename")
+    assert other.get_device(1)["location"] == "New confirmed location"
+    assert other.get_device(1)["hostname"] == "Fresh editor rename"
+
+
+def test_stale_delete_confirmation_rejected(manager):
+    original = manager.get_device(1)
+    DeviceManager(manager.data_file).edit_device(1, location="Changed after confirmation opened")
+    before = manager.data_file.read_bytes()
+    with pytest.raises(ValueError, match="Device changed"):
+        manager.delete_device(1, True, expected_device=original)
+    assert manager.data_file.read_bytes() == before
+    assert manager.get_device(1) is not None
+    fresh = manager.get_device(1)
+    assert manager.delete_device(1, True, expected_device=fresh)
+    assert manager.get_device(1) is None
