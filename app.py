@@ -8,6 +8,9 @@ except ModuleNotFoundError:
     from report import generate_report, export_csv
 
 from network_tools import check_connectivity, get_diagnostics
+from monitoring import MonitorSession
+import argparse
+from pathlib import Path
 
 
 def display_menu():
@@ -24,6 +27,9 @@ def display_menu():
     print("7. Generate Network Report")
     print("8. Export Device Data")
     print("9. Exit")
+    print("10. Edit Device")
+    print("11. Delete Device")
+    print("12. Scheduled Monitoring")
 
 
 def add_device(manager):
@@ -167,47 +173,85 @@ def diagnostics_menu(manager):
         print(f"{key}: {value}")
 
 
-def main():
-    manager = DeviceManager()
+def edit_device_menu(manager):
+    device_id = int(input("Device ID: "))
+    device = manager.get_device(device_id)
+    if device is None:
+        raise ValueError("Device not found.")
+    print(device)
+    print("Enter keeps a field; /cancel cancels the entire edit.")
+    changes = {}
+    for key in ("hostname", "ip_address", "device_type", "location"):
+        value = input(f"{key} [{device[key]}]: ").strip()
+        if value == "/cancel":
+            print("Edit cancelled.")
+            return
+        if value:
+            changes[key] = value
+    if input("Save changes? Type yes: ").strip().casefold() == "yes":
+        print("Saved:", manager.edit_device(device_id, **changes))
+    else:
+        print("Edit cancelled.")
 
+
+def delete_device_menu(manager):
+    device_id = int(input("Device ID: "))
+    device = manager.get_device(device_id)
+    if device is None:
+        raise ValueError("Device not found.")
+    print(device)
+    confirmed = input("Delete this record? Type yes: ").strip().casefold() == "yes"
+    print("Device deleted." if manager.delete_device(device_id, confirmed) else "Delete cancelled.")
+
+
+def monitoring_menu(manager):
+    device_id = int(input("Device ID: "))
+    interval = float(input("Delay after each probe in seconds [5]: ") or "5")
+    count = int(input("Observation count [5]: ") or "5")
+    session = MonitorSession(manager, device_id, interval=interval, count=count)
+    print("Ctrl+C stops after the bounded probe or during the interval.")
+    try:
+        session.run(lambda row: print(row["timestamp"], row["result"], row["event"], "(history saved)"))
+    except KeyboardInterrupt:
+        session.stop()
+        print("Monitoring cancelled.")
+    print("History:", session.history_file)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="NETMANAGE CLI")
+    parser.add_argument("--data-dir", type=Path, help="Explicit shared data directory; default is legacy ./data")
+    args = parser.parse_args()
+    try:
+        manager = DeviceManager((args.data_dir or Path("data")) / "devices.json")
+    except (ValueError, OSError) as error:
+        print(f"Error: {error}")
+        return 1
+    print("Inventory:", manager.data_file)
+    actions = {"1": add_device, "2": view_devices, "3": search_device,
+               "4": lambda m: validate_ip_menu(), "5": connectivity_menu,
+               "6": diagnostics_menu,
+               "7": lambda m: print(generate_report(m.get_all_devices())),
+               "8": lambda m: print("Exported:", export_csv(m.get_all_devices(), m.data_file.parent / "exports" / "devices.csv")),
+               "10": edit_device_menu, "11": delete_device_menu, "12": monitoring_menu}
     while True:
         display_menu()
-
-        choice = input("\nEnter your choice: ").strip()
-
-        if choice == "1":
-            add_device(manager)
-
-        elif choice == "2":
-            view_devices(manager)
-
-        elif choice == "3":
-            search_device(manager)
-
-        elif choice == "4":
-            validate_ip_menu()
-
-        elif choice == "5":
-            connectivity_menu(manager)
-
-        elif choice == "6":
-            diagnostics_menu(manager)
-
-        elif choice == "7":
-            report = generate_report(manager.get_all_devices())
-            print("\n" + report)
-
-        elif choice == "8":
-            filename = export_csv(manager.get_all_devices())
-            print(f"Device data exported to {filename}")
-
-        elif choice == "9":
-            print("Thank you for using NetManage.")
-            break
-
-        else:
-            print("Invalid choice. Please select 1-9.")
+        try:
+            choice = input("\nEnter your choice: ").strip()
+            if choice == "9":
+                print("Thank you for using NetManage.")
+                return 0
+            action = actions.get(choice)
+            if action:
+                action(manager)
+            else:
+                print("Invalid choice. Select a listed option.")
+        except (ValueError, OSError) as error:
+            print(f"Error: {error}")
+        except (EOFError, KeyboardInterrupt):
+            print("\nGoodbye.")
+            return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
