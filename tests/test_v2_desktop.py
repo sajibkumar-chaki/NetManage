@@ -5,6 +5,7 @@ import time
 from unittest.mock import patch
 import pytest
 pytest.importorskip("PySide6", reason="CLI-only environment; Windows desktop job runs Qt tests")
+from PySide6.QtCore import QCoreApplication,QEvent
 from PySide6.QtWidgets import QApplication,QDialog,QMessageBox
 from device_manager import DeviceManager
 from desktop import MainWindow,DeviceDialog,MonitorWorker
@@ -14,7 +15,10 @@ from monitoring import MonitorSession
 @pytest.fixture(scope="module")
 def qtapp():
     app=QApplication.instance() or QApplication([])
+    app.setQuitOnLastWindowClosed(False)
     yield app
+    QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)
+    app.processEvents()
 
 
 @pytest.fixture
@@ -24,7 +28,10 @@ def window(qtapp,tmp_path):
     w=MainWindow(m)
     yield w
     if w.monitor:w.monitor.stop();w.monitor.wait(2000)
+    w.timer.stop()
     w.close()
+    w.deleteLater()
+    QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)
     qtapp.processEvents()
 
 
@@ -86,6 +93,8 @@ def test_monitor_observation_on_gui_thread(window,qtapp):
     pump(qtapp,lambda:bool(threads))
     worker.wait(1000)
     assert threads==[threading.get_ident()]
+    worker.deleteLater()
+    QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)
 
 
 def test_csv_cancel_and_error(window,monkeypatch,tmp_path):
