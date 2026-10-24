@@ -1,5 +1,7 @@
 # Native Windows one-folder build; no user inventory is bundled.
 a = Analysis(['desktop.py'], pathex=[], binaries=[], datas=[], hiddenimports=[], hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=['PySide6.QtWebEngineCore','PySide6.QtWebEngineWidgets','PySide6.QtPdf'], noarchive=False)
+# Qt uses Windows OS ICU. Exclude incompatible third-party tool-PATH ICU.
+a.binaries = [entry for entry in a.binaries if entry[0].lower() not in {'icuuc.dll', 'icudt78.dll'}]
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='NETMANAGE', debug=False, bootloader_ignore_signals=False, strip=False, upx=False, console=False)
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='NETMANAGE')

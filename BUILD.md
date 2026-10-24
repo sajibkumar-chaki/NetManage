@@ -18,3 +18,5 @@ The CLI retains `./data` by default; use `python app.py --data-dir "C:/same/path
 The executable is unsigned. Developer-machine launch tests are not clean-machine certification.
 
 Upstream documentation: https://doc.qt.io/qtforpython-6/gettingstarted.html and https://pyinstaller.org/en/stable/usage.html.
+
+The spec excludes tool-PATH ICU copies: Qt uses the supported Windows OS ICU shim. The first experimental package exposed this collision and is retained only as failed-run evidence.
