@@ -1,6 +1,7 @@
 
 import ipaddress
-import platform
+import sys
+import re
 import subprocess
 
 
@@ -9,7 +10,7 @@ def check_connectivity(ip_address, timeout=2):
 
     try:
         ip = ipaddress.ip_address(ip_address)
-    except ValueError:
+    except (ValueError, TypeError):
         return "Invalid IP Address"
 
     if (
@@ -19,7 +20,7 @@ def check_connectivity(ip_address, timeout=2):
     ):
         return "Invalid Timeout"
 
-    system = platform.system().lower()
+    system = "windows" if sys.platform == "win32" else sys.platform
 
     if system == "windows":
         command = [
@@ -40,15 +41,27 @@ def check_connectivity(ip_address, timeout=2):
     try:
         result = subprocess.run(
             command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            errors="replace",
             timeout=timeout + 2,
             check=False,
         )
 
         if result.returncode == 0:
+            # Windows may return zero for an ICMP destination-unreachable error.
+            # Require a reply measurement, independent of localized reply labels.
+            output = result.stdout
+            if system == "windows" and isinstance(output, str):
+                if not re.search(r"(?:[=<]\s*\d+\s*ms\b|TTL[=：]\d+)", output, re.I):
+                    return "No Ping Response"
             return "Reachable"
 
+        output = result.stdout
+        if isinstance(output, str) and any(message in output.casefold() for message in
+                ("general failure", "unable to contact ip driver", "permission denied", "operation not permitted")):
+            return "Ping Error"
         return "No Ping Response"
 
     except subprocess.TimeoutExpired:

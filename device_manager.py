@@ -1,97 +1,191 @@
+"""Shared inventory service: atomic saves and OS-released interprocess locks."""
+import copy
+import ipaddress
 import json
+import os
+import tempfile
+import warnings
+from contextlib import contextmanager
 from pathlib import Path
 
 
-class DeviceManager:
-    """Manages network devices and persists them in a JSON file."""
+@contextmanager
+def file_lock(path):
+    """Nonblocking lock; lock files persist, OS releases locks on process exit."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as handle:
+        handle.seek(0, 2)
+        if not handle.tell():
+            handle.write(b"0")
+            handle.flush()
+        handle.seek(0)
+        try:
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise ValueError("Store is busy: another writer or monitoring session is active.") from exc
+        try:
+            yield
+        finally:
+            handle.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle, fcntl.LOCK_UN)
 
+
+def validate_fields(hostname, ip_address, device_type, location):
+    values = [hostname, ip_address, device_type, location]
+    if any(not isinstance(v, str) or not v.strip() for v in values):
+        raise ValueError("All fields must contain text.")
+    if any(len(v) > 255 or any(ord(c) < 32 for c in v) for v in values):
+        raise ValueError("Fields must be at most 255 characters without control characters.")
+    hostname, ip_address, device_type, location = [v.strip() for v in values]
+    ip_address = str(ipaddress.ip_address(ip_address))
+    return dict(hostname=hostname, ip_address=ip_address, device_type=device_type, location=location)
+
+
+class DeviceManager:
+    """CLI default remains data/devices.json; desktop passes an explicit store."""
     def __init__(self, data_file="data/devices.json"):
-        self.data_file = Path(data_file)
+        self.data_file = Path(data_file).resolve()
         self.data_file.parent.mkdir(parents=True, exist_ok=True)
+        self.lock_path = self.data_file.with_suffix(".lock")
+        self.monitor_lock = self.data_file.with_suffix(".monitor.lock")
         self.devices = self._load_devices()
 
     def _load_devices(self):
         if not self.data_file.exists():
             return []
-
         try:
-            with self.data_file.open("r", encoding="utf-8") as file:
-                return json.load(file)
-        except (json.JSONDecodeError, OSError):
-            return []
+            records = json.loads(self.data_file.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as exc:
+            raise ValueError(f"Cannot read inventory {self.data_file}: {exc}. File preserved.") from exc
+        if not isinstance(records, list):
+            raise ValueError("Inventory must be a JSON list. File preserved.")
+        ids, addresses = set(), set()
+        for record in records:
+            try:
+                ident = record["id"]
+                if type(ident) is not int or ident < 1 or ident in ids:
+                    raise ValueError("invalid or duplicate ID")
+                ids.add(ident)
+                fields = validate_fields(*(record[k] for k in ("hostname", "ip_address", "device_type", "location")))
+                address = fields["ip_address"]
+                if address in addresses:
+                    warnings.warn(f"Existing duplicate address {address}; resolve by editing or deleting.", RuntimeWarning)
+                addresses.add(address)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid inventory record: {exc}. File preserved; repair a backup manually.") from exc
+        return records
 
     def _save_devices(self):
-        with self.data_file.open("w", encoding="utf-8") as file:
-            json.dump(self.devices, file, indent=4)
+        name = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.data_file.parent,
+                                             prefix=".inventory-", suffix=".tmp", delete=False) as handle:
+                name = handle.name
+                json.dump(self.devices, handle, indent=4)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(name, self.data_file)
+        finally:
+            if name and os.path.exists(name):
+                os.unlink(name)
+
+    @contextmanager
+    def _transaction(self):
+        with file_lock(self.monitor_lock), file_lock(self.lock_path):
+            self.devices = self._load_devices()
+            previous = copy.deepcopy(self.devices)
+            try:
+                yield
+                self._save_devices()
+            except BaseException:
+                self.devices = previous
+                raise
+
+    def _unique(self, address, own_id=None):
+        for device in self.devices:
+            if device["id"] != own_id and str(ipaddress.ip_address(device["ip_address"].strip())) == address:
+                raise ValueError(f"IP address {address} is already registered.")
 
     def add_device(self, hostname, ip_address, device_type, location):
-        # Prevent duplicate IP addresses
-        for device in self.devices:
-            if device["ip_address"] == ip_address:
-                raise ValueError(
-                    f"IP address {ip_address} is already registered."
-                )
+        fields = validate_fields(hostname, ip_address, device_type, location)
+        with self._transaction():
+            self._unique(fields["ip_address"])
+            device = dict(id=max((d["id"] for d in self.devices), default=0) + 1, **fields)
+            self.devices.append(device)
+        return copy.deepcopy(device)
 
-        next_id = max(
-            (device["id"] for device in self.devices),
-            default=0
-        ) + 1
+    @staticmethod
+    def _check_snapshot(device, expected_device):
+        if expected_device is not None and device != expected_device:
+            raise ValueError("Device changed since this form was opened. Refresh and reopen before saving or deleting.")
 
-        device = {
-            "id": next_id,
-            "hostname": hostname,
-            "ip_address": ip_address,
-            "device_type": device_type,
-            "location": location
-        }
+    def edit_device(self, device_id, *, expected_device=None, **changes):
+        if set(changes) - {"hostname", "ip_address", "device_type", "location"}:
+            raise ValueError("Unknown device field.")
+        with self._transaction():
+            device = next((d for d in self.devices if d["id"] == device_id), None)
+            if device is None or type(device_id) is not int:
+                raise ValueError("Device not found.")
+            self._check_snapshot(device, expected_device)
+            fields = validate_fields(*(changes.get(k, device[k]) for k in ("hostname", "ip_address", "device_type", "location")))
+            self._unique(fields["ip_address"], device_id)
+            if fields["ip_address"] != str(ipaddress.ip_address(device["ip_address"])):
+                for key in ("status", "last_checked", "connectivity"):
+                    device.pop(key, None)
+            device.update(fields)
+        return copy.deepcopy(device)
 
-        self.devices.append(device)
-        self._save_devices()
-        return device
+    def delete_device(self, device_id, confirmed=False, *, expected_device=None):
+        if confirmed is not True:
+            return False
+        with self._transaction():
+            if type(device_id) is not int or not any(d["id"] == device_id for d in self.devices):
+                raise ValueError("Device not found.")
+            device = next(d for d in self.devices if d["id"] == device_id)
+            self._check_snapshot(device, expected_device)
+            self.devices = [d for d in self.devices if d["id"] != device_id]
+        return True
+
+    def import_inventory(self, source_file):
+        source = DeviceManager(source_file)
+        records = source.get_all_devices()
+        addresses = [str(ipaddress.ip_address(d["ip_address"].strip())) for d in records]
+        if len(addresses) != len(set(addresses)):
+            raise ValueError("Import contains duplicate addresses. Resolve them first.")
+        with self._transaction():
+            if self.devices:
+                raise ValueError("Import requires an empty destination store. Existing inventory preserved.")
+            if self.data_file.exists():
+                import shutil
+                from datetime import datetime
+                backup = self.data_file.with_name("devices.backup-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ".json")
+                shutil.copy2(self.data_file, backup)
+            self.devices = records
+        return len(records)
 
     def get_all_devices(self):
-        return self.devices
+        self.devices = self._load_devices()
+        return copy.deepcopy(self.devices)
 
     def get_device(self, device_id):
-        for device in self.devices:
-            if device["id"] == device_id:
-                return device
-        return None
+        return next((d for d in self.get_all_devices() if type(device_id) is int and d["id"] == device_id), None)
 
     def search_devices(self, term):
-        term = term.lower()
+        return self.search_device(self.get_all_devices(), term)
 
-        return [
-            device
-            for device in self.devices
-            if (
-                term in device["hostname"].lower()
-                or term in device["ip_address"].lower()
-                or term in device["device_type"].lower()
-                or term in device["location"].lower()
-            )
-        ]
-    
     @staticmethod
     def search_device(devices, search_term):
-        """Search devices by hostname, IP address, device type, or location."""
-        search_term = search_term.strip().casefold()
-
-        if not search_term:
+        term = search_term.strip().casefold()
+        if not term:
             return []
-
-        results = []
-
-        for device in devices:
-            searchable_fields = [
-                str(device.get("hostname", "")),
-                str(device.get("ip_address", "")),
-                str(device.get("device_type", "")),
-                str(device.get("location", "")),
-            ]
-
-            if any(search_term in field.casefold() for field in searchable_fields):
-                results.append(device)
-
-        return results
-    
+        return [copy.deepcopy(d) for d in devices if any(term in str(d.get(k, "")).casefold()
+                for k in ("hostname", "ip_address", "device_type", "location"))]
