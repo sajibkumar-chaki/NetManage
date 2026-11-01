@@ -10,16 +10,20 @@ access. A fresh Windows run with Python 3.12.14 and pytest 8.4.2 passes all
 The revised workflow runs on every push, main pull request and manual dispatch.
 It preserves Ubuntu Python 3.12 backend tests and Windows Python 3.13 desktop
 tests, saves JUnit XML, then packages source only when both jobs succeed.
-The downloadable source artifact has an empty inventory. This is automated
+The source builder uses an explicit file manifest, rejects missing files and
+symbolic links, and creates an empty inventory. Local `.env` files and custom
+data directories are excluded. Update the manifest when adding source files.
+This is automated
 source delivery, not deployment to production routers or a rebuilt executable.
 Run python scripts/build_release.py to reproduce the archive locally.
 
-## Merge restriction remains an owner action
+## Documented merge-restriction limitation
 The GitHub API reports main as unprotected. The repository plan does not
 support the requested rules for this private repository. Sajib is admin;
-Mashfiq has write access. The owner must enable a suitable plan and require
-checks test and windows-desktop and a genuine approving review. Do not make
-the private repository public merely to bypass this plan limitation.
+Mashfiq has write access. Further upgrade attempts have stopped; the repository
+remains private and this enforcement gap is retained in the assessment.
+If protection becomes available later, require checks test and windows-desktop
+and a genuine approving review, including administrators.
 A failing workflow prevents the package job. It does not itself block merging.
 
 ## Reproduce
